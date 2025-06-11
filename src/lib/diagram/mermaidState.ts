@@ -271,6 +271,17 @@ export class MermaidState {
           parallelState.branches?.length + ''
         )
       );
+
+      let branchStates = "";
+      for (const branch of parallelState.branches) {
+        if (branch.actions) {
+          const stateName = `${this.stateKeyDiagram(this.state.name)}.${this.stateKeyDiagram(branch.name)}`;
+          branchStates += `state ${stateName} {\n${this.generateCompositeState(stateName, branch.actions, "sequential")}\n}\n`;
+          branchStates += `[*] --> ${stateName}\n`
+          branchStates += `${stateName} --> [*]\n`
+        }
+      }
+      descriptions.push(`state ${this.stateKeyDiagram(this.state.name)} {\n${branchStates}\n}\n`)
     }
 
     return descriptions.length > 0
@@ -300,6 +311,9 @@ export class MermaidState {
     if (state.actions) {
       descriptions.push(
         this.stateDescription(this.stateKeyDiagram(this.state.name), 'Num. of actions', state.actions?.length + '')
+      );
+      descriptions.push(
+        `state ${this.stateKeyDiagram(this.state.name)} {\n${this.generateCompositeState(this.state.name, state.actions, state.actionMode)}\n}\n`
       );
     }
 
@@ -386,5 +400,35 @@ export class MermaidState {
 
   private stateDescription(stateName: string | undefined, description: string, value?: string) {
     return stateName + ` : ${description}${value !== undefined ? ' = ' + value : ''}`;
+  }
+
+  private generateCompositeState(stateName: string | undefined, actions: Specification.Action[], actionMode: string | undefined) {
+    let transitions: string = "";
+
+    if (actions.length > 0) {
+      for (let i = 0; i < actions.length; i++) {
+        const fnName = this.getFunctionName(actions[i].functionRef);
+        if (fnName) {
+          if (actionMode === 'sequential') {
+            const currentAction = `${stateName}.${fnName}`;
+            const nextAction = i < actions.length - 1 ? `${stateName}.${this.getFunctionName(actions[i + 1].functionRef)}` : "[*]";
+
+            if (i === 0) {
+              transitions += `[*] --> ${currentAction}\n`;
+            }
+
+            transitions += `${currentAction} --> ${nextAction}\n`; 
+          } else if (actionMode === 'parallel') {
+            transitions += `[*] --> ${fnName}\n`;
+            transitions += `${fnName} --> [*]\n`;
+          }
+        }
+      }
+    }
+    return transitions
+  }
+
+  private getFunctionName(fnRef: Specification.Functionref | string | undefined): string | undefined {
+    return this.stateKeyDiagram(fnRef instanceof Specification.Functionref ? fnRef.refName : fnRef)
   }
 }
